@@ -326,6 +326,197 @@ map类型注入:
 
 
 
+## 搭建基于IOC的案例
+
+<h4 style="color:red;">QueryRunner的使用和BeanListHandler的使用</h4>
+
+```java
+//操作数据库的核心类
+QueryRunner类
+    query() : 查询语句
+	update() : 修改语句
+比如:
+//创建
+private QueryRunner runner;
+String sql = "select * from account";
+List<Account> accountList = runner.query(sql,
+                                      new BenaListHandler<Account>(Account.class));
+解释:BeanListHandler<Account>(Account.class)表示把sql语句查询的结构转换为Account泛型的集合
+	
+//如果只需要返回一个用户,使用BeanHandler就可以    
+```
+
+<h4 style="color:red;">配置数据库连接相关信息的bean</h4>
+
+```xml
+
+		<!--配置数据源的相关信息-->
+    	<bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+
+        <!--配置数据库的核心-->
+        <property name="driverClass" value="com.mysql.cj.jdbc.Driver"/>
+
+        <!--配置数据库的url-->
+        <property name="jdbcUrl" value="jdbc:mysql://127.0.0.1:3306/test?serverTimezone=Asia/Shanghai";
+
+
+        <!--配置数据库用户名-->
+        <property name="user" value="root"/>
+
+
+        <!--配置数据库的密码-->
+        <property name="password" value="root"/>
+    </bean>
+
+```
+
+具体案例请看: 
+
+
+
+## Spring中注解的应用
+
+### 什么是注解
+
+```
+其实在我们学javaSE的时候就接触了注解
+	比如：@override
+		 @WebServlet等
+说白了就是标记我们的类，或者方法特殊的地方
+```
+
+### Spring中的注解有哪些
+
+```
+1.创建对象的注解@Component(类似于bean标签)
+	该注解有一个value属性,如果我们不指定,该值默认是类名首字母的小写
+	@component有三个衍生注解
+		下面三个注解的作用和@component是一样的,只是说为了明确后面的三层开发(MVC)而衍生的
+		@controller: 用于控制层
+		@Service: 用于业务层
+		@Repository: 用于持久层 
+2.给对象赋值的注解@AutoWired(类似于property和construct-arg标签)
+	
+3.改变作用域的注解(类似于bean标签中的scope属性)
+4.生命周期的注解(类似于bean标签中的init-method注解和destroy-method注解)
+```
+
+### 定义包扫描的规则
+
+```xml
+因为我们上面定义了注解,但是如果我们没有在配置文件中定义包扫描的规则(Spring就不会扫描我们的目录),Spring就不知道那些类是被注解的
+
+我们可以利用<context:component-scan>标签让Spring去扫描我们指定的目录,看目录哪些类是被@Component注解了的
+    base-package属性: 给他一个路径,Spring会扫描指定路径下的包，及其子包所有类
+    
+    比如:
+    <context:component-scan base-package="com.mmm"></context:component-scan>
+    Spring就会在com.mmm下去扫描所有的包及其子包,看哪些类被@component注解了
+    
+```
+
+
+
+#### @component注解使用案例
+
+```java
+package org.mmm;
+
+import org.springframework.stereotype.Controller;
+
+@Controller
+public class note {
+
+    public void addAccount(){
+        System.out.println("test");
+    }
+}
+
+package org.mmm;
+
+import org.junit.Test;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+public class TestAccount {
+
+    @Test
+    public void test02() {
+        ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("applicationContext.xml");
+        note note = (org.mmm.note) context.getBean("note");
+        note.addAccount();
+    }
+}
+
+
+```
+
+#### @autowired注解使用案例
+
+```java
+
+
+
+```
+
+<h4 style="color:red;">@autowired注解原理</h4>
+
+```
+autowired的原理是:先看有没有类型相同的bean,如果有且只有一个,就直接用这个bean对象注入。如果有且有多个,就看有没有键(后面会说IOC容器其实是一个map)和属性名一样的,有名字一样的就注入该bean
+
+IOC容器实际上是一个map
+	map里面存的就是键值对,而我们的value(@component注解的属性)就是键,而我们bean就是值
+```
+
+@autowired原理图解![@autowired原理.png](https://img2.imgtp.com/2024/04/04/fQZYbLXn.png)
+
+#### @Qualifier和@Resource注解
+
+```
+@Qualifier注解主要是根据名称注解(必须配合@Autowired和@Resource使用)
+	用法:
+	1.配合@Autowired使用
+		让容器中的bean有多个和属性的类型匹配,且属性名和bean的key(前面说的键)都不同时,可以配合使用
+		比如:
+		@Autowired
+		@Qualifier("bean的名称")
+	2.配合@Resource使用
+	@Resource只要是根据类型来进行注入，所以当IOC容器中有多个bean和属性的类型相同时,可以配合使用
+		比如:
+        @Resource(type = AccountDao.class)
+        @Qualifier("accountDaoImpl")
+
+@Resource注解:主要是根据类型匹配,有type和name属性
+	比如:@Resource(type = AccountDao.class , name = "accountDaoImpl")
+
+@Resource的总结:
+	1.如果同时配置了type和name,则在IOC找同时匹配的bean,如果没有抛异常
+	2.如果只指定名称,就去找name匹配的,找不到抛异常
+	3.如果只指定类型,如果找不到,或者有多个,抛异常
+	4.如果都不知道,默认按名称匹配
+@Resource和@Autowired的区别: 前者默认按名称匹配,后面默认按类型匹配
+```
+
+#### @Value注解
+
+```
+主要是针对字符串类型赋值(使用之前必须要有IOC环境，也就是@Component注解)
+用法:
+	@Value("Eggsy")
+	private String name;
+	
+	@Value("20")
+	private Integer age;
+	
+	@Value("男")
+	private String sex;
+```
+
+
+
+
+
+
+
 
 
 
