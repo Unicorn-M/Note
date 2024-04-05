@@ -329,7 +329,6 @@ map类型注入:
 ## 搭建基于IOC的案例
 
 <h4 style="color:red;">QueryRunner的使用和BeanListHandler的使用</h4>
-
 ```java
 //操作数据库的核心类
 QueryRunner类
@@ -347,7 +346,6 @@ List<Account> accountList = runner.query(sql,
 ```
 
 <h4 style="color:red;">配置数据库连接相关信息的bean</h4>
-
 ```xml
 
 		<!--配置数据源的相关信息-->
@@ -453,13 +451,23 @@ public class TestAccount {
 #### @autowired注解使用案例
 
 ```java
+@Service(value = "accountService")
+public class AccountServiceImpl implements AccountService {
+	
+    //默认先看类型，再看名字(名字和bean的名字要一样)
+    @Autowired
+    private AccountDao AccountDaoImpl;
 
+    @Override
+    public void addAccount() {
+        AccountDaoImpl.addAccount();
+    }
+}
 
 
 ```
 
 <h4 style="color:red;">@autowired注解原理</h4>
-
 ```
 autowired的原理是:先看有没有类型相同的bean,如果有且只有一个,就直接用这个bean对象注入。如果有且有多个,就看有没有键(后面会说IOC容器其实是一个map)和属性名一样的,有名字一样的就注入该bean
 
@@ -511,6 +519,729 @@ IOC容器实际上是一个map
 	private String sex;
 ```
 
+#### @Scope注解
+
+```java
+主要是定义作用域的
+    属性是value
+	属性有两个值:singleton,prototype
+    默认是singleton: 表示是单例bean(不会重复创建对象)
+	prototype: 每次创建对象都是一个新的空间
+    注意:如果一个bean不加@Scope标签,也是单例bean    
+比如:
+package org.mmm.pojo;
+
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
+
+@Component
+//默认单例bean
+@Scope
+//@Scope(value = "prototype")这样就是多例bean
+public class Account {
+
+    private Integer id;
+
+    private String name;
+
+    private Double money;
+
+    public Integer getId() {
+        return id;
+    }
+
+    public void setId(Integer id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Double getMoney() {
+        return money;
+    }
+
+    public void setMoney(Double money) {
+        this.money = money;
+    }
+}
+
+```
+
+#### @PostConstruct和@PreDestroy注解
+
+```java
+@PostConstruct: 注解初始化的方法
+@PreDestroy: 注解对象将要销毁时的方法
+
+比如:
+/**
+     * 初始化的方法
+     */
+    @PostConstruct
+    public void init(){
+        System.out.println("Account对象创建了");
+    }
+
+    /**
+     * 对象销毁前执行的方法
+     */
+    @PreDestroy
+    public void destroy(){
+        System.out.println("Account对象销毁了");
+    }
+
+```
+
+## Spring的xml配置文件和properties文件混合使用
+
+#### 读取properties文件
+
+```xml
+在Spring的配置文件中使用<conext:property-placeholder/>标签加载properties配置文件
+	使用location属性加载properties文件
+	
+比如:
+<context:property-placeholder location="classpath:db.properties" />
+classpath: 表示类路径下的指定文件
+
+
+
+
+```
+
+
+
+<h4 style="color:red;">properties配置文件书写注意,不要加双引号</h4>
+
+错误的书写![__SO`4SZC4F1QU8VZIS@__O.png](https://img2.imgtp.com/2024/04/05/tiKXZ4Km.png)
+
+正确的书写![ED_QXVR_TE_QX04SRLZ2__2.png](https://img2.imgtp.com/2024/04/05/03aDSgmG.png)
+
+## 通过java配置类的方式来管理bean
+
+上面我们都是使用xml配置文件来管理bean,我们也可以用java配置类来管理bean
+
+### 	@Configuration注解
+
+```java
+这个注解用来修饰类,表示当前类是一个配置类
+
+比如:
+//标识这是一个配置类
+@Configuration
+public class SpringConfiguration {
+
+}    
+```
+
+### @ComponentScan注解
+
+```java
+开始包扫描
+    属性:basePackages
+     basePackages: 主要用来管理扫描路径   
+比如:
+@Configuration
+//扫描org.mmm下的目录及其子目录
+@ComponentScan(basePackages = "org.mmm")
+public class SpringConfiguration {
+
+}
+
+```
+
+### @Bean标签
+
+```java
+类似于xml里面的bean标签
+    用于修饰方法,方法的返回值类型就是我们要管理的bean(有点类似于工厂类的感觉)
+	属性: name
+        默认情况下我们不知道名称,bean的名称就是方法名
+比如:
+@Configuration
+@ComponentScan(basePackages = "org.mmm")
+public class SpringConfiguration {
+
+    /**
+     * 获取一个数据源的Bean
+     * @return
+     */
+    @Bean(name = "dataSource")
+    public DataSource dataSource(){
+        ComboPooledDataSource dataSource = new ComboPooledDataSource();
+        try {
+            dataSource.setDriverClass("com.mysql.cj.jdbc.Driver");
+            dataSource.setJdbcUrl("jdbc:mysql://127.0.0.1:3306/test?serverTimezone=Asia/Shanghai");
+            dataSource.setUser("root");
+            dataSource.setPassword("root");
+            return dataSource;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 获取一个QueryRunner的Bean
+     * @param dataSource
+     * @return
+     */
+    @Bean(name = "runner")
+    public QueryRunner queryRunner(@Qualifier("dataSource") DataSource dataSource){
+        return new QueryRunner(dataSource);
+    }
+}
+
+解释: @Qualifier("dataSource") DataSource dataSource
+	@Qualifier可以用来修饰形参
+    作用:
+		@Qualifier会根据我们给的Bean名字,去IOC中寻找名字相同的Bean,找到后把Bean复制给我们的形参
+
+```
+
+
+
+### 使用java配置类测试代码的时候需要注意的问题
+
+```java
+因为我们没有了配置文件,所以我们测试的时候就不能使用ClassPathXmlApplicationContext()
+	因为我们是用的注解的方式,所以可以用AnnotationConfigApplicaitonContext()类
+    
+比如:
+ @Test
+    public void test03(){
+        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(SpringConfiguration.class);
+        AccountService service = (AccountService) context.getBean("accountService");
+        service.addAccount();
+        service.findAll();
+    }
+```
+
+### @Import标签
+
+```java
+因为后面开发我们可能要配置很多配置类
+    比如:
+		数据库的配置类
+		消息中间件的配置类
+		文件上传的配置类等
+如果搞这么多个配置类,就违反了单一职责的原则,所以我们可以弄一个SpringConfiruation的配置类,然后这个配置类包含了其他的配置类
+
+    比如:
+public class SqlConfiguration {
+
+    /**
+     * 获取一个数据源的Bean
+     * @return
+     */
+    @Bean(name = "dataSource")
+    public DataSource dataSource(){
+        ComboPooledDataSource dataSource = new ComboPooledDataSource();
+        try {
+            dataSource.setDriverClass("com.mysql.cj.jdbc.Driver");
+            dataSource.setJdbcUrl("jdbc:mysql://127.0.0.1:3306/test?serverTimezone=Asia/Shanghai");
+            dataSource.setUser("root");
+            dataSource.setPassword("root");
+            return dataSource;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 获取一个QueryRunner的Bean
+     * @param dataSource
+     * @return
+     */
+    @Bean(name = "runner")
+    public QueryRunner queryRunner(@Qualifier("dataSource") DataSource dataSource){
+        return new QueryRunner(dataSource);
+    }
+    
+}
+
+@Configuration
+@ComponentScan(basePackages = "org.mmm")
+@Import(value = {SqlConfiguration.class})
+public class SpringConfiguration {
+    
+}
+           
+
+```
+
+### @PropertySource标签
+
+```java
+该标签主要是读取properties配置文件,类似于xml中的<context:property-placeholder/>标签
+
+比如:
+/**
+ * 子配置类 专门描述数据库的配置信息
+ */
+@PropertySource("classpath:db.properties")
+public class SqlConfiguration {
+
+    @Value("${jdbc.driverClass}")
+    private String driverClass;
+
+    @Value("${jdbc.url}")
+    private String url;
+
+    @Value("${jdbc.username}")
+    private String username;
+
+    @Value("${jdbc.password}")
+    private String password;
+
+
+
+    /**
+     * 获取一个数据源的Bean
+     * @return
+     */
+    @Bean(name = "dataSource")
+    public DataSource dataSource(){
+        ComboPooledDataSource dataSource = new ComboPooledDataSource();
+        try {
+            dataSource.setDriverClass(driverClass);
+            dataSource.setJdbcUrl(url);
+            dataSource.setUser(username);
+            dataSource.setPassword(password);
+            return dataSource;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 获取一个QueryRunner的Bean
+     * @param dataSource
+     * @return
+     */
+    @Bean(name = "runner")
+    public QueryRunner queryRunner(@Qualifier("dataSource") DataSource dataSource){
+        return new QueryRunner(dataSource);
+    }
+
+}
+
+
+```
+
+### 关于@Configuration可不可以不要,要和不要有什么区别的问题
+
+```
+@Configuration可以不要
+	如果不要的话,一个bean如果要引用另一个bean的时候,另一个bean会创建两次
+		因为IOC创建的时候每一个Bean要创建一次,而被引用的时候不会直接从IOC里面取对象,而是重新创建一次
+	当然,如果要的话每一个Bean被引用的时候都可以直接从IOC里取
+```
+
+## Spirng整合Junit
+
+``` java
+1.导入依赖
+<dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <version>5.2.0.RELEASE</version>
+ </dependency>
+
+2.配置注解
+//这是测试模板类需要的一个启动器
+@RunWith(SpringJUnit4ClassRunner.class)
+
+3.在测试模板类中也引入IOC容器
+@ContextConfiguration注解
+    属性: classes,locations
+    locations主要有xml配置文件的时候使用
+	classes里面放我们的配置类的class类(没有配置文件的时候使用)
+    比如:
+@ContextConfiguration(classes = {SpringConfiguration.class})
+@ContextConfiguration(locations = {"classpath:applicationContext.xml"})
+
+4.开始测试
+    @RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {SpringConfiguration.class})
+//@ContextConfiguration(locations = {"classpath:applicationContext.xml"})
+public class TestFrame {
+
+    @Autowired
+    private AccountService service;
+
+
+    @Test
+    public void test01(){
+        service.findAll();
+    }
+
+}
+
+    
+```
+
+<h4 style="color:red;">好处就是我们不用每次写test方法的时候都去new容器类</h4>
+
+
+
+## Spring中的事务
+
+### 	什么是事务
+
+```
+事务是描述一个逻辑的最小单位
+	什么意思?
+	比如说我们吃东西:需要夹东西,张嘴,然后把菜放进嘴里
+	吃东西本来是可以分解为三个动作,但是吃饭看做一个事务,这三个动作就不能分开
+	就是夹东西，张嘴，然后把菜放进嘴里必须要执行完
+	不能夹东西,然后不张嘴,就把吃东西这个事务完成了
+	
+事物的特性:ACID原则(背下来,以后吹牛逼有用)
+	A:原子性 事务的逻辑操作必须是最小单位  不可分割的
+	C:一致性 指的是事务提交前,和事务提交后的数据必须保持一致
+	I:隔离性 指的是多个事务之间必须互相独立不影响
+	D:持久性 指的是事务提交之后,数据必须要持久化的保存再数据表里
+	
+事务的隔离级别:
+	读未提交: 一个事务读到另一个事务没有提交的数据  --容易造成脏读
+	读已提交: Oracle数据库默认的事务隔离级别.  -- 解决了脏读问题,但是出现了不可重复读的现象(但一个人频繁读,而另一个人在存数据。读的那个人会发现读的数据不一样)
+	可重复读: mysql默认的事务隔离级别。解决了不可重复读的问题,但是出现了幻读的问题(比如用户a和用户b同时存储数据,id自增长,假如都是要增长到4,但是a先提交,就导致b看到自己的id是5)
+	可串行化: 解决了所以的事务问题,但是性能很低，一般也不常用
+
+
+```
+
+
+
+
+
+<h4 style="color:red;">如何判断操作是否在同一个事务中?如果操作在同一个事务中,那么他们一定在同一个数据库连接对象中</h4>
+
+
+
+### 	ThreadLocal: 将当前线程和数据库连接对象绑定
+
+```java
+绑定线程和数据库连接对象可以解决,操作和数据库连接对象不统一的问题
+
+第一步(使用ThreadLocal类将数据库连接对象和当前线程绑定).    
+package org.mmm.utils;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+
+//变成一个Bean的目的是获取dataSource
+@Component
+public class ConnectionUtils {
+
+    @Autowired
+    private DataSource dataSource;
+
+    //创建ThreadLocal的目的是为了绑定资源(这里是数据库连接)和线程
+    ThreadLocal<Connection> threadLocal = new ThreadLocal<>();
+
+    /**
+     * 获取和线程绑定的数据库连接对象
+     * @return 和线程绑定的数据库连接对象
+     */
+    public Connection getConnection(){
+        try {
+            Connection conn = threadLocal.get();
+            if (conn == null){
+                conn = dataSource.getConnection();
+                threadLocal.set(conn);
+            }
+            return conn;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 将当前线程和数据库连接对象解绑
+     */
+    public void removeConnection(){
+        threadLocal.remove();
+    }
+}
+    
+第二步(定义一个事务管理的类TransactionManager).
+	定以一个事务管理器类
+		开启事务的方法
+		提交事务的方法
+		回滚事务的方法
+		释放资源的方法
+    package org.mmm.utils;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.sql.SQLException;
+
+//标记被bean是为了获取ConnectionUtils
+@Component
+public class TransactionManager {
+
+    @Autowired
+    ConnectionUtils conn;
+
+    /**
+     * 开始事务
+     */
+    public void beginTransaction(){
+        try {
+            conn.getConnection().setAutoCommit(false);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 提交事务
+     */
+    public void commit(){
+        try {
+            conn.getConnection().commit();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 事务回滚
+     */
+    public void rollBack(){
+        try {
+            conn.getConnection().rollback();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 释放连接
+     */
+    public void release(){
+        try {
+            conn.getConnection().close();
+            conn.removeConnection();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+}
+    
+    
+    
+    
+第三步(在业务类中完成下面操作).
+	try{
+		开启事务
+        执行事务代码
+        提交事务   
+	}catch(Exception e){
+        回滚事务
+    }finally{
+        释放资源
+    }
+		
+package org.mmm.service.impl;
+
+import org.mmm.dao.AccountDao;
+import org.mmm.pojo.Account;
+import org.mmm.service.AccountService;
+import org.mmm.utils.TransactionManager;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service(value = "accountService")
+public class AccountServiceImpl implements AccountService {
+
+    @Autowired
+    private AccountDao accountDao;
+
+    @Autowired
+    private TransactionManager manager;
+
+    @Override
+    public void transfer(String sourceName, String targetName, Double money) {
+        try {
+            //开启事务
+            manager.beginTransaction();
+            Account source = accountDao.getAccountByName(sourceName);
+            Account target = accountDao.getAccountByName(targetName);
+            if (sourceName != null && targetName != null){
+                if (source.getMoney() >= money){
+                    accountDao.updateMoney(sourceName, source.getMoney() - money);
+                    int i = 10 / 0;
+                    accountDao.updateMoney(targetName, target.getMoney() + money);
+                }
+            }
+            //提交事务
+            manager.commit();
+        }catch (Exception e){
+            e.printStackTrace();
+            //事务回滚
+            manager.rollBack();
+        }finally {
+            //释放事务
+            manager.release();
+        }
+    }
+}		
+		
+
+```
+
+
+
+## 	代理
+
+```java
+什么是代理: 说白了就是用反射的方法, 去实现我们要代理对象的接口
+    
+```
+
+### 	JDK动态代理
+
+```java
+注意: JDK动态代理必须是基于接口实现
+    
+接口:
+package org.mmm.proxy;
+
+public interface ProductDao {
+
+    public void product(String name);
+
+}
+
+实现接口的类:
+package org.mmm.proxy.impl;
+
+import org.mmm.proxy.ProductDao;
+
+public class Producer implements ProductDao {
+    @Override
+    public void product(String name) {
+        System.out.println(name + "购买了一台电脑.....");
+    }
+}
+
+代理测试类:
+package org.mmm.proxy.impl;
+
+import org.mmm.proxy.ProductDao;
+
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+
+public class consumer {
+
+    public static void main(String[] args) {
+
+        Producer producer = new Producer();
+
+        producer.product("自己");
+
+        /**
+         * Producer.class.getClassLoader():类加载器,保证Producer对象创建
+         * producer.getClass().getInterfaces(): 该方法返回一个数组，包含了该类所实现的所有接口。
+         *
+         * new InvocationHandler(): 我们调用代理实现的逻辑在invoke接口里实现
+         *
+         * public Object invoke(Object proxy, Method method, Object[] args)
+         *  proxy:表示当前代理对象
+         *  method: 表示被代理对象的方法,这里指的是Producer的方法
+         *  args : 表示被代理对象的方法传入的参数
+         */
+        ProductDao proxy = (ProductDao) Proxy.newProxyInstance(Producer.class.getClassLoader(),
+                producer.getClass().getInterfaces(),
+                new InvocationHandler() {
+                    @Override
+                    public Object invoke(Object proxy,
+                                         Method method,
+                                         Object[] args) throws Throwable {
+                        if (method.getName().equals("product")) {
+                            //第一个参数表示要代理的对象, 第二个参数表示要传入的参数
+                            method.invoke(producer, args);
+                        }
+                        return null;
+                    }
+                });
+        proxy.product("代理");
+
+    }
+}
+
+
+```
+
+### 	chlib代理
+
+```java
+基于子类进行实现,并且是懒实现,用到才会创建,JDK动态代理是启动就实现
+    
+代码:
+package org.mmm.proxy.cglib;
+
+import net.sf.cglib.proxy.Enhancer;
+import net.sf.cglib.proxy.MethodInterceptor;
+import net.sf.cglib.proxy.MethodProxy;
+
+import java.lang.reflect.Method;
+
+public class ProductObject{
+    public static void main(String[] args) {
+
+        Producer producer = new Producer();
+        producer.product("自己");
+
+        Producer proxy = (Producer) Enhancer.create(Producer.class, new MethodInterceptor() {
+            /**
+             *
+             * @param o 当前代理对象的应用
+             * @param method 代理对象的方法
+             * @param objects   代理对象方法对应需要的参数
+             * @param methodProxy   指定代理的对象一般不用(暂时我也不知道为什么)
+             * @return 返回代理方法的参数
+             * @throws Throwable
+             */
+            @Override
+            public Object intercept(Object o, Method method,
+                                    Object[] objects,
+                                    MethodProxy methodProxy) throws Throwable {
+                if ("product".equals(method.getName())){
+                    method.invoke(producer, objects);
+                }
+                return null;
+            }
+        });
+
+        producer.product("代理");
+    }
+
+}
+
+```
 
 
 
@@ -518,10 +1249,16 @@ IOC容器实际上是一个map
 
 
 
+## SpringAOP
+
+### 	什么是AOP
+
+```
 
 
 
 
+```
 
 
 
