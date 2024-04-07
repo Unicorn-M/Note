@@ -618,7 +618,6 @@ classpath: 表示类路径下的指定文件
 
 
 <h4 style="color:red;">properties配置文件书写注意,不要加双引号</h4>
-
 错误的书写![__SO`4SZC4F1QU8VZIS@__O.png](https://img2.imgtp.com/2024/04/05/tiKXZ4Km.png)
 
 正确的书写![ED_QXVR_TE_QX04SRLZ2__2.png](https://img2.imgtp.com/2024/04/05/03aDSgmG.png)
@@ -892,7 +891,6 @@ public class TestFrame {
 <h4 style="color:red;">好处就是我们不用每次写test方法的时候都去new容器类</h4>
 
 
-
 ## Spring中的事务
 
 ### 	什么是事务
@@ -925,7 +923,6 @@ public class TestFrame {
 
 
 <h4 style="color:red;">如何判断操作是否在同一个事务中?如果操作在同一个事务中,那么他们一定在同一个数据库连接对象中</h4>
-
 
 
 ### 	ThreadLocal: 将当前线程和数据库连接对象绑定
@@ -1115,7 +1112,7 @@ public class AccountServiceImpl implements AccountService {
 ## 	代理
 
 ```java
-什么是代理: 说白了就是用反射的方法, 去实现我们要代理对象的接口
+代理模式允许你创建一个代理对象，该对象可以拦截对目标对象方法的调用，并在调用前后执行特定的逻辑。这样可以在不修改目标对象的情况下，对其方法进行增强、扩展或控制。
     
 ```
 
@@ -1243,22 +1240,482 @@ public class ProductObject{
 
 ```
 
-
-
-
-
-
-
 ## SpringAOP
 
-### 	什么是AOP
+### 		什么是AOP
+
+```xml
+类似于IOC，也是一个容器，只是这个容器里面装的是方法
+	我们可以指定一个方法,在这个方法之前或者执行后来运行另一个方法
+	我们指定的方法就叫切点,而我们在这个方法基础上运行的其他方法就叫通知
+	通知在切面上
+	<!--    配置业务类的bean-->
+    <bean id="userService" class="org.mmm.service.impl.UserServiceImpl"/>
+
+<!--    管理切面的类-->
+    <bean id="myAspect" class="org.mmm.service.aspect.MyAspect"/>
+
+
+    <aop:config>
+<!--
+	<aop:pointcut>标签就是定义切点的标签
+		id: 表示这个切点的名字
+		expression() : 定义方法的执行规则
+			* : 表示返回任意参数
+			(..) : 表示任意形参
+
+-->
+        <aop:pointcut id="p1" expression="execution(* org.mmm.service.impl.UserServiceImpl.deleteUser(..))"/>
+        <aop:pointcut id="p2" expression="execution(* org.mmm.service.impl.UserServiceImpl.getUser(..))"/>
+
+        
+        <!--
+	<aop:aspect> : 表示切面,里面可以放我们要给切点加的方法
+		ref: 表示要在哪一个类里面找方法给切点加方法
+	<aop:before> : 在切点前加方法
+ 		method : 在myAspect类里面找哪一个方法加到切点
+		poincut-ref : 加在哪个切点上
+-->
+        <aop:aspect ref="myAspect">
+            <aop:before method="checkPrivilege" pointcut-ref="p1"/>
+            <aop:after method="printLog" pointcut-ref="p2"/>
+        </aop:aspect>
+
+    </aop:config>
+
+
+```
+
+### 	AOP里面的术语
+
+![AOP术语.png](https://img2.imgtp.com/2024/04/06/yBQmeERa.png)
+
+### AOP的一个案例
+
+```java
+//切面类
+package org.mmm.service.aspect;
+
+public class MyAspect {
+
+    public void checkPrivilege(){
+        System.out.println("执行了权限验证的方法");
+    }
+
+}
+//目标类
+package org.mmm.service.impl;
+
+import org.mmm.service.UserService;
+
+public class UserServiceImpl implements UserService {
+    @Override
+    public void addUser() {
+        System.out.println("增加了一个用户....");
+    }
+
+    @Override
+    public void deleteUser() {
+        System.out.println("删除了一个用户....");
+    }
+
+    @Override
+    public void updateUser() {
+        System.out.println("更新了一个用户....");
+
+    }
+
+    @Override
+    public void getUser() {
+        System.out.println("查询了一个用户....");
+
+    }
+}
+
+//测试类
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mmm.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(locations = "classpath:applicationContext.xml")
+public class TestAspect {
+
+    @Autowired
+    private UserService service;
+
+    @Test
+    public void test01(){
+
+        service.deleteUser();
+
+    }
+}
+
+
+```
+
+```xml
+//xml配置文件
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/aop https://www.springframework.org/schema/aop/spring-aop.xsd">
+
+
+<!--    配置业务类的bean-->
+    <bean id="userService" class="org.mmm.service.impl.UserServiceImpl"/>
+
+<!--    管理切面的类-->
+    <bean id="myAspect" class="org.mmm.service.aspect.MyAspect"/>
+
+
+    <aop:config>
+        <aop:pointcut id="p1" expression="execution(* org.mmm.service.impl.UserServiceImpl.deleteUser(..))"/>
+
+        <aop:aspect ref="myAspect">
+            <aop:before method="checkPrivilege" pointcut-ref="p1"/>
+        </aop:aspect>
+
+    </aop:config>
+
+
+</beans>
+```
+
+### 通知方法的类型
+
+```xml
+//切点执行前通知
+<aop:before method="checkPrivilege" pointcut-ref="p1"/>
+//切点执行后通知
+<aop:after method="printLog" pointcut-ref="p2"/>
+//我们可以自己控制(传参ProceedingJoinPoint joinPoint, joinPoint.process()表示我们的切点方法),前和后都可以
+<aop:around method="around" pointcut-ref="p2"/>
+//出现异常时指定的方法
+<aop:after-throwing/>
+
+
+
+```
+
+### 使用注解的方式执行AOP
+
+```java
+1.开启包扫描
+    <aop:aspectj-autoproxy>/aop: aspectj-autoproxy>
+    <context:component-scan base-package="com.xq"></context:component-scan>
+2.配置切面类
+        @Component
+        @Aspect
+3.配置增强方法
+        @Before(value="execution(* org.mmm.service.impl.UserServiceImpl.deleteUser(..))")
+        @AfterReturning(最终事务)
+        @Around
+        @AfterThrowing
+        @After
+		@PointCut(修饰切点方法,增强方法修饰的时候value="切点方法名就行")
+
+//下面是切面类
+package org.mmm.service.aspect;
+
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.springframework.stereotype.Component;
+
+@Component
+@Aspect
+public class MyAspect {
+
+    @Before(value = "execution(* org.mmm.service.impl.UserServiceImpl.deleteUser(..))")
+    public void checkPrivilege(){
+        System.out.println("执行了权限验证的方法");
+    }
+
+    @AfterReturning(value = "execution(* org.mmm.service.impl.UserServiceImpl.getUser())")
+    public void printLog(){
+        System.out.println("开启了打印日志的方法");
+    }
+
+    @Around(value = "execution(* org.mmm.service.impl.UserServiceImpl.getUser(..))")
+    public void around(ProceedingJoinPoint joinPoint){
+
+        try {
+            System.out.println("1");
+            joinPoint.proceed();
+            System.out.println(2);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+}
+
+
+
+```
+
+## jdbcTemplate
+
+### 	使用方法
+
+```xml
+1.导入依赖
+<dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>5.0.2.RELEASE</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+            <version>5.0.2.RELEASE</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+            <version>5.0.2.RELEASE</version>
+        </dependency>
+
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.11</version>
+</dependency>
+
+
+2.配置数据源(使用配置文件的方法)
+<context:component-scan base-package="org.mmm"/>
+
+    <context:property-placeholder location="classpath:db.properties"/>
+
+    <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+        <property name="driverClassName" value="${jdbc.Driver}"/>
+        <property name="url" value="${jdbc.url}"/>
+        <property name="username" value="${jdbc.username}"/>
+        <property name="password" value="${jdbc.passwd}"/>
+    </bean>
+
+    <bean id="jdbc" class="org.springframework.jdbc.core.JdbcTemplate">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+
+3.开始使用
+
+//配置的rowMapper(用于结果集处理)
+package org.mmm.pojo;
+
+import org.springframework.jdbc.core.RowMapper;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
+public class MyRowMap<T> implements RowMapper {
+    @Override
+    public Account mapRow(ResultSet resultSet, int i) throws SQLException {
+
+        Integer id = (Integer) resultSet.getObject("id");
+        String name = (String) resultSet.getObject("name");
+        Double money = (Double) resultSet.getObject("money");
+        return new Account(id, name, money);
+    }
+}
+
+
+
+
+//接口的使用
+package org.mmm.dao.impl;
+
+import org.mmm.dao.AccountDao;
+import org.mmm.pojo.Account;
+import org.mmm.pojo.MyRowMap;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public class AccountDaoImpl implements AccountDao {
+
+    @Autowired
+    private JdbcTemplate conn;
+
+    @Override
+    public void findAll() {
+        String sql = "select * from account";
+        List<Account> query = conn.query(sql, new MyRowMap<Account>());
+        query.forEach(System.out::println);
+    }
+
+    @Override
+    public void findAccountById(Integer id) {
+        String sql = "select * from account where id = ?";
+        List<Account> accountList = conn.query(sql, new MyRowMap<Account>(), id);
+        accountList.forEach(System.out::println);
+    }
+
+    @Override
+    public void addAccount(Account account) {
+        String sql = "insert into account(name, money) values(?, ?)";
+        int cnt = conn.update(sql, account.getName(), account.getMoney());
+        System.out.println("添加了" + cnt + "个用户," + account.getName() );
+    }
+
+    @Override
+    public void deleteAccountById(Integer id) {
+        String sql = "delete from account where id = ?";
+        int cnt = conn.update(sql, id);
+        System.out.println("删除了" + cnt + "个用户");
+    }
+
+    @Override
+    public void updateAccount(Account account) {
+        String sql = "update account set name = ?, money = ? where id = ?";
+        int cnt = conn.update(sql, account.getName(), account.getMoney(), account.getId());
+        System.out.println("修改了" + cnt + "条语句");
+    }
+}
+```
+
+
+
+## Spring事务控制
+
+### 	Spring事务控制需要的类和xml的Bean配置
+
+```xml
+(1)PlatformTransactionManager: 平台事务管理器
+   平台事务管理器: 接口, 是Spring用于管理事务的真正的对象
+		DataSourceTransactionManager : 底层使用JDBC管理事务
+		HibernateTransactionManager : 底层使用Hibernate管理事务
+(2)TransactionDefinition : 事务定义信息
+	事务定义: 用于定义事务的相关信息, 隔离级别, 超时信息, 传播行为, 是否只读(后面用到印象深一些，现在也不是很会)
+	
+管理bean
+    <bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+        <property name="driverClass" value="${jdbc.driverClass}"/>
+        <property name="jdbcUrl" value="${jdbc.url}"/>
+        <property name="user" value="${jdbc.username}"/>
+        <property name="password" value="${jdbc.passwd}"/>
+    </bean>
+
+<!--    事务管理-->
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+
+<!--    事务管理模版-->
+    <bean id="transactionTemplate" class="org.springframework.transaction.support.TransactionTemplate">
+        <property name="transactionManager" ref="transactionManager"/>
+    </bean>
+
+
+```
+
+### 	具体使用(template.execute())
+
+```java
+这个匿名对象里面的接口就是我们想要增强的方法
+TransactionCallbackWithoutResult() {
+    @Override
+    protected void doInTransactionWithoutResult(TransactionStatus transactionStatus){
+
+    	//我们要事务控制的代码
+    
+    }
+}
+
+
+
+package org.mmm.service.impl;
+
+import org.mmm.dao.AccountDao;
+import org.mmm.pojo.Account;
+import org.mmm.service.AccountService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallbackWithoutResult;
+import org.springframework.transaction.support.TransactionTemplate;
+
+@Service
+public class AccountServiceImpl implements AccountService {
+
+    @Autowired
+    private AccountDao accountDao;
+
+    @Autowired
+    private TransactionTemplate template;
+    
+    @Override
+    public void transfer(String sourceName, String targetName, Double money) {
+
+        template.execute(new TransactionCallbackWithoutResult() {
+            @Override
+            protected void doInTransactionWithoutResult(TransactionStatus transactionStatus) {
+                //获取扣账人的账户信息
+                Account sourceAccount = accountDao.findAccountByName(sourceName);
+                //获取入账人的信息
+                Account targetAccount = accountDao.findAccountByName(targetName);
+
+                if (sourceAccount != null && targetAccount != null && sourceAccount.getMoney() >= money){
+                    //修改扣账人的金额
+                    sourceAccount.setMoney(sourceAccount.getMoney() - money);
+//                    int i = 10 / 0;
+                    //修改入账人的金额
+                    targetAccount.setMoney(targetAccount.getMoney() + money);
+
+                    //更新数据库的金额
+                    accountDao.updateMoneyByAccount(sourceAccount);
+                    accountDao.updateMoneyByAccount(targetAccount);
+                }
+            }
+        });
+    }
+}
+```
+
+
+
+### 使用注解的方法把业务代码和事务管理的代码分离
+
+```xml
+使用@Transactional注解
+	1.该注解既可以放在类上面,也可以放在方法上面
+	2.如果放在业务类上面 意味着当前业务类中的所有方法都会被事务控制，并且应用的都是同一种事务隔离界别和事务传播行为
+	3.如果放在业务方法上面 意味着可以对指定业务类进行事务控制,并且对不同的业务方法设置不同的事务隔离级别和传播行为
+	
+	isolation: 控制事务隔离级别
+	propagation: 控制事务传播方法
+
+
 
 ```
 
 
 
 
-```
+
+
+
+
+
+
+
+
+
+
 
 
 
