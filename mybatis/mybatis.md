@@ -384,6 +384,108 @@ parameterType属性如果是String或者是基本数据类型的话，我们可�
 
 ```
 
+## 解决数据表的字段名和实体类的属性名不一致,导致数据为null的问题
+
+```xml
+1.直接在写sql语句的时候给数据表的字段名取别名(别名和实体类的属性名一致)
+例如:
+	<select id="findAll" resultType="org.mmm.pojo.User">
+		<!--select * from user-->
+        select id as userId, username as username, birthday as userBirthday,
+        sex as userSex, address as userAddress from user
+	</select>
+但是有弊端:如果属性名很多,并且很多语句都要查询,就要写很多语句,就要取很多别名            
+
+2.使用resultType标签来解决
+例如:
+    <resultMap id="userMap" type="org.mmm.pojo.User">
+        <!--id标签是用来做主键字段的映射的-->
+        <id property="userId" column="id"/>
+        <result property="userName" column="username"/>
+        <result property="userBirthday" column="birthday"/>
+        <result property="userSex" column="sex"/>
+        <result property="userAddress" column="address"/>
+    </resultMap>
+
+	<!--返回值属性就不用resultType了,而是resultMap-->
+    <select id="findAll" resultMap="userMap">
+        select * from user
+    </select>
+
+	<!--并且resultType里面的属性可以复用-->
+例如:
+	<!--本来返回值应该是User-->
+	<select id="findUserByName" resultMap="userMap" parameterType="String">
+        select * from user where username = #{username}
+    </select>
+
+```
+
+## mybatis中传统DAO开发实现(了解)
+
+```java
+public class UserDaoImpl implements UserDao{
+    
+    private SqlsessionFactory sqlSessionFactory;
+    
+    private UserDAoImpl(SqlSessionFactory sqlSesssionFactory){
+        this.sqlSessionFactory = sqlSessionFactory;
+    }
+    
+    public List<User> findAll(){
+        SqlSession sqlSession = sqlSessionFactory.openSession();
+        //通过全限定名的方式找到映射器
+        List<User> UserList = sqlSession.selectList("org.mmm.dao.UserDao.findAll");
+        sqlSession.close();
+        return UserList;
+    }
+}
+```
+
+## sqlMapConfig.xml标签讲解
+
+```xml
+1.读取properties文件使用<properties resource=""></properties>
+比如:
+<properties resource="db.properties"/>
+    <!--配置环境mybatis的事务管理,还有数据源-->
+    <environments default="mybatis">
+        <environment id="mybatis">
+            <transactionManager type="JDBC"></transactionManager>
+            <dataSource type="POOLED">
+                <property name="driver" value="${jdbcDriver}"/>
+                <property name="url" value="${jdbcUrl}"/>
+                <property name="username" value="${jdbcUserName}"/>
+                <property name="password" value="${jdbcPassword}"/>
+            </dataSource>
+        </environment>
+    </environments>
+
+2.用<typeAliases></typeAliases>标签给我们自定义的类型加别名(注意这个标签必须写在properties和settings标签后面)
+比如:
+	<typeAliases>
+        <!--这里一个typeAlias对象一个类的别名-->
+        <typeAlias type="org.mmm.pojo.User" alias="user"></typeAlias>
+        <!--这里表示包下的所以类的别名默认就是类名-->
+        <package name="org.mmm.pojo"/>
+    </typeAliases>
+
+3.使用Mappers标签来导入映射文件
+第一种(只能引入一个xml文件):
+	<!--引入映射文件-->
+    <mappers>
+        <mapper resource="org/mmm/dao/UserDao.xml"/>
+    </mappers>
+第二种(引入包下所有的xml文件,此方法要求mapper接口名称和mapper映射文件名称相同,且放在同一个目录)
+	<mappers>
+        <package name="org.mmm.dao"/>
+    </mappers>
+第三张(使用mapper接口类路径。如果我们使用注解开发的时候，就需要这个路径)
+	<mappers>
+        <mapper name="org.mmm.dao"/>
+    </mappers>
+```
+
 
 
 
