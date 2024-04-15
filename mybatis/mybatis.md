@@ -1,3 +1,7 @@
+
+
+
+
 # mybatis
 
 ## 	什么是mybatis
@@ -13,7 +17,7 @@
 ```说明
 这是只是从概念上来理解,后面用的时候会加上代码
 
-mybatis通过xml或者注解的方式,将各种要执行statement配置起来。并通过java对象和statement中的sql的动态参数映射成最终的sql语句,然后通过mybatis框架执行
+mybatis通过xml或者注解的方式,将各种要执行statement配置起来。并通过java对象和statement中的sql的动态参数映射成最终的sql语句,然后通过mybatis框架执行了
 ```
 
 ##  mybatis的核心配置文件
@@ -484,6 +488,71 @@ public class UserDaoImpl implements UserDao{
 	<mappers>
         <mapper name="org.mmm.dao"/>
     </mappers>
+```
+
+## mybatis中的连接池
+
+```java
+mybatis中的数据源DataSource分为以下几类:
+//控制服务器连接的对象,必须在web项目中才可以使用
+JndiDataSourceFactory
+//使用连接池方式连接数据库
+PooledDataSourceFactory
+//每次连接数据库创建新的连接对象
+UnpooledDataSourceFactory    
+```
+
+<h4 style="color:gray;">UnpooledDataSourceFactory在做什么?</h4>
+
+```java
+1.使用反射的机制加载数据库驱动
+2.获取数据库连接对象
+```
+
+<h4 style="color:gray;">PooledDataSourceFactory在做什么?</h4>
+
+```java
+1.判断连接池是否还有空闲连接
+    如果有空闲的连接就直接从集合中取出连接
+
+    如果没有空闲的链接就判断活动连接池的数量是否小于最大活动的数量
+   		如果小于,就在创建一个链接出来使用
+		
+    	如果大于,就把最老的连接对象(空闲连接池里面最先创建的对象)拿出来使用
+```
+
+## mybatis的事务管理
+
+```java
+1.mybatis开启事务默认是需要手动提交事务的
+
+    //如果要自动提交就把openSession传入的参数设置为true
+session = factory.openSession(true);
+    
+private SqlSession session;
+
+    public <T> T loadConfigFile(Class<T> clazz){
+        //从配置文件中读入信息
+        InputStream in = null;
+        try {
+            in = Resources.getResourceAsStream("sqlMapConfig.xml");
+            //构建SqlSessionFactoryBuilder对象
+            SqlSessionFactoryBuilder builder = new SqlSessionFactoryBuilder();
+            //构建SqlSessionFactory对象
+            SqlSessionFactory factory = builder.build(in);
+            //构建SqlSession对象
+            session = factory.openSession(true);
+            //创建代理对象
+            return session.getMapper(clazz);
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+
+
+
 ```
 
 
