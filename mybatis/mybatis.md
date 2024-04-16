@@ -503,14 +503,12 @@ UnpooledDataSourceFactory
 ```
 
 <h4 style="color:gray;">UnpooledDataSourceFactory在做什么?</h4>
-
 ```java
 1.使用反射的机制加载数据库驱动
 2.获取数据库连接对象
 ```
 
 <h4 style="color:gray;">PooledDataSourceFactory在做什么?</h4>
-
 ```java
 1.判断连接池是否还有空闲连接
     如果有空闲的连接就直接从集合中取出连接
@@ -555,13 +553,190 @@ private SqlSession session;
 
 ```
 
+##mybatis中标签动态查询
 
+<h4 style="color:gray;">为什么要使用动态查询什么?</h4>
 
+```xml
+因为我们sql语句的查询条件可能不是固定的
+	比如:
+	select * from user where .....
+	where后面的条件是不固定的
+```
 
+<h4 style="color:gray;">怎么解决?</h4>
 
+```xml
+使用if标签
+比如:(这里传入的参数一般是映射数据表的实体)
+	<select id="findUserByCondition" parameterType="user" resultType="user">
+        select * from user where 1=1
+        <if test="username != null and username != ''">
+            and username = #{username}
+        </if>
+        <if test="id != null and id != ''">
+            and id = #{id}
+        </if>
+        <if test="birthday != null and birthday != ''">
+            and birthday = #{birthday}
+        </if>
+        <if test="sex != null and sex != ''">
+            and sex = #{sex}
+        </if>
+        <if test="address != null and address != ''">
+            and address = #{address}
+        </if>
+    </select>
+```
 
+<h4 style="color:gray;">使用where标签,去掉1=1</h4>
 
+```xml
+我们上面因为不知道哪个是第一个条件,所以不知道哪个不加and,为了解决这个问题,我们使用 1=1来解决
+而where标签就是自动去除第一个满足条件的and
 
+<select id="findUserByCondition" parameterType="user" resultType="user">
+        select * from user
+        <where>
+            <if test="username != null and username != ''">
+                and username = #{username}
+            </if>
+            <if test="id != null and id != ''">
+                and id = #{id}
+            </if>
+            <if test="birthday != null and birthday != ''">
+                and birthday = #{birthday}
+            </if>
+            <if test="sex != null and sex != ''">
+                and sex = #{sex}
+            </if>
+            <if test="address != null and address != ''">
+                and address = #{address}
+            </if>
+        </where>
+    </select>
+```
+
+<h4 style="color:gray;">使用set标签</h4>
+
+```xml
+	注意每个语句后面的,不能少
+
+    <update id="UpdateUserByCondition" parameterType="user">
+        update user
+        <set>
+            <if test="username != null and username != ''">
+                 username = #{username},
+            </if>
+            <if test="birthday != null and birthday != ''">
+                 birthday = #{birthday},
+            </if>
+            <if test="sex != null and sex != ''">
+                 sex = #{sex},
+            </if>
+            <if test="address != null and address != ''">
+                address = #{address},
+            </if>
+        </set>
+        where id = #{id}
+    </update>
+```
+
+<h4 style="color:gray;">sql标签,trim标签,include标签</h4>
+
+```xml
+<!--sql标签主要用来定义sql片段-->
+<sql></sql>
+
+<!--trim标签主要用来过滤-->
+<trim></trim>
+
+<!--include标签主要用来引用sql片段-->
+<inlcude></inlcude>
+
+案例:
+<!--id就是找到sql片段的标记,只要取名唯一即可-->
+    <sql id="key">
+        <!--suffixOverrides=","表示取出末尾的,-->
+        <trim suffixOverrides=",">
+            <if test="username != null and username != ''">
+                username,
+            </if>
+            <if test="birthday != null and birthday != ''">
+                birthday,
+            </if>
+            <if test="sex != null and sex != ''">
+                sex,
+            </if>
+            <if test="address != null and address != ''">
+                address,
+            </if>
+        </trim>
+    </sql>
+
+    <sql id="values">
+        <trim suffixOverrides=",">
+            <if test="username != null and username != ''">
+                #{username},
+            </if>
+            <if test="birthday != null and birthday != ''">
+                #{birthday},
+            </if>
+            <if test="sex != null and sex != ''">
+                #{sex},
+            </if>
+            <if test="address != null and address != ''">
+                #{address},
+            </if>
+        </trim>
+    </sql>
+
+    <insert id="InsertUserSelective" parameterType="user">
+        insert into user(<include refid="key"/>) values(<include refid="values"/>)
+    </insert>
+
+```
+
+<h4 style="color:gray;">choose标签,when标签,otherwise标签</h4>
+
+```xml
+<select id="findUserByCondition1" parameterType="user" resultType="user">
+        select * from user
+        <where>
+            <choose>
+                <when test="username != null and username != ''">
+                    username = #{username}
+                </when>
+                <when test="birthday != null and birthday != ''">
+                    birthday = #{birthday}
+                </when>
+                <when test="sex != null and sex != ''">
+                    sex = #{sex}
+                </when>
+                <when test="address != null and address != ''">
+                    username = #{address}
+                </when>
+                <otherwise>
+                    id = #{id}
+                </otherwise>
+            </choose>
+        </where>
+    </select>
+```
+
+<h4 style="color:gray;">foreach标签</h4>
+
+```xml
+	<delete id="deleteUserInIds">
+        delete from user1 where id in (
+            <!--如果传的是数组,则用map集合来传递的参数,集合的key是array,
+            而如果传的是集合本身,那参数名就是集合名本身-->
+            <foreach collection="array" item="id" separator=",">
+                #{id}
+            </foreach>
+        )
+    </delete>
+```
 
 
 
