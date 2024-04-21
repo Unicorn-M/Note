@@ -556,7 +556,6 @@ private SqlSession session;
 ##mybatis中标签动态查询
 
 <h4 style="color:gray;">为什么要使用动态查询什么?</h4>
-
 ```xml
 因为我们sql语句的查询条件可能不是固定的
 	比如:
@@ -565,7 +564,6 @@ private SqlSession session;
 ```
 
 <h4 style="color:gray;">怎么解决?</h4>
-
 ```xml
 使用if标签
 比如:(这里传入的参数一般是映射数据表的实体)
@@ -590,7 +588,6 @@ private SqlSession session;
 ```
 
 <h4 style="color:gray;">使用where标签,去掉1=1</h4>
-
 ```xml
 我们上面因为不知道哪个是第一个条件,所以不知道哪个不加and,为了解决这个问题,我们使用 1=1来解决
 而where标签就是自动去除第一个满足条件的and
@@ -618,7 +615,6 @@ private SqlSession session;
 ```
 
 <h4 style="color:gray;">使用set标签</h4>
-
 ```xml
 	注意每个语句后面的,不能少
 
@@ -643,7 +639,6 @@ private SqlSession session;
 ```
 
 <h4 style="color:gray;">sql标签,trim标签,include标签</h4>
-
 ```xml
 <!--sql标签主要用来定义sql片段-->
 <sql></sql>
@@ -698,7 +693,6 @@ private SqlSession session;
 ```
 
 <h4 style="color:gray;">choose标签,when标签,otherwise标签</h4>
-
 ```xml
 <select id="findUserByCondition1" parameterType="user" resultType="user">
         select * from user
@@ -725,7 +719,6 @@ private SqlSession session;
 ```
 
 <h4 style="color:gray;">foreach标签</h4>
-
 ```xml
 	<delete id="deleteUserInIds">
         delete from user1 where id in (
@@ -738,7 +731,194 @@ private SqlSession session;
     </delete>
 ```
 
+## mybatis的批量处理
 
+```xml
+开启mybatis批处理的两种方式
+
+第一种方式:在mybatis核心配置文件上开启
+<settings>
+	<setting name="defaultExecutorType" value="BATCH"/>
+</settings>
+
+第二种方式:在创建SqlSession对象的时候,指定开启批处理
+sqlSession = sessionFactory.openSession(ExecutoryType.BATCH, false);
+
+
+```
+
+## mybatis的多表查询
+
+<h4 style="color:gray;">一对一时处理方式</h4>
+
+```xml
+主体是account,一个account只对应一个user，所以是一对一的关系
+
+方法一:
+
+一对一时,我们可以在主体实体中加一个附属实体的属性,然后使用<association></association>标签来取我们的属性(我们sql语句中没有查询的字段,在查询结果集展示的时候,没查询的值表示为null。下面的例子中,除了username和address,User中的其他字段结果都是null)
+
+<mapper namespace="org.mmm.dao.UserDao">
+    <resultMap id="accountMap" type="org.mmm.pojo.Account">
+        <id column="ID" property="ID"/>
+        <result column="UID" property="UID"/>
+        <result column="MONEY" property="MONEY"/>
+
+        <!--1对1进行关联表查询的时候对字段进行映射-->
+        <association property="user" javaType="org.mmm.pojo.User">
+            <id column="id" property="id"/>
+            <result property="username" column="username"/>
+            <result property="birthday" column="birthday"/>
+            <result property="sex" column="sex"/>
+            <result property="address" column="address"/>
+        </association>
+    </resultMap>
+    
+    <select id="findAll" resultMap="accountMap">
+        SELECT account.*,`user`.username, `user`.address FROM `user`,account WHERE `user`.id = account.UID
+    </select>
+</mapper>
+
+方法二:
+
+使用继承的方式,我们新建一个类,继承要查询主体类(这个例子是Account),然后在子类中加入我们要查询附加类(这个例子中是User)的属性
+
+public class AccountUser extends  Account{
+
+    private String username;
+
+    private String address;
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    @Override
+    public String toString() {
+        return "AccountUser{" +
+                "username='" + username + '\'' +
+                ", address='" + address + '\'' +
+                "} " + super.toString();
+    }
+}
+```
+
+<h4 style="color:gray;">一对多的查询</h4>
+
+```xml
+我们在主体实体里面加入一个list的集合来映射一对多的关系
+
+<mapper namespace="org.mmm.dao.UserDao">
+    <resultMap id="userDao" type="org.mmm.pojo.User">
+        <id property="id" column="id"/>
+        <result column="username" property="username"/>
+        <result column="birthday" property="birthday"/>
+        <result column="sex" property="sex"/>
+        <result column="address" property="address"/>
+        <collection property="list" ofType="org.mmm.pojo.Account">
+            <id property="ID" column="ID"/>
+            <result column="UID" property="UID"/>
+            <result column="MONEY" property="MONEY"/>
+        </collection>
+    </resultMap>
+
+
+    <select id="findAll" resultMap="userDao">
+        SELECT account.*,`user`.username, `user`.address FROM `user`,account WHERE `user`.id = account.UID
+    </select>
+    
+</mapper>
+
+<!--主体类是User-->
+
+
+public class User {
+    private Integer id;
+
+    private String username;
+
+    private Date birthday;
+
+    private String sex;
+
+    private String address;
+	<!--一个用户对应多个账户-->
+    private List<Account> list;
+
+    public Integer getId() {
+        return id;
+    }
+
+    public void setId(Integer id) {
+        this.id = id;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public Date getBirthday() {
+        return birthday;
+    }
+
+    public void setBirthday(Date birthday) {
+        this.birthday = birthday;
+    }
+
+    public String getSex() {
+        return sex;
+    }
+
+    public void setSex(String sex) {
+        this.sex = sex;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public List<Account> getList() {
+        return list;
+    }
+
+    public void setList(List<Account> list) {
+        this.list = list;
+    }
+
+    @Override
+    public String toString() {
+        return "User{" +
+                "id=" + id +
+                ", username='" + username + '\'' +
+                ", birthday=" + birthday +
+                ", sex='" + sex + '\'' +
+                ", address='" + address + '\'' +
+                ", list=" + list +
+                '}';
+    }
+}
+
+```
 
 
 
