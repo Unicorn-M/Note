@@ -750,7 +750,6 @@ sqlSession = sessionFactory.openSession(ExecutoryType.BATCH, false);
 ## mybatis的多表查询
 
 <h4 style="color:gray;">一对一时处理方式</h4>
-
 ```xml
 主体是account,一个account只对应一个user，所以是一对一的关系
 
@@ -816,7 +815,6 @@ public class AccountUser extends  Account{
 ```
 
 <h4 style="color:gray;">一对多的查询</h4>
-
 ```xml
 我们在主体实体里面加入一个list的集合来映射一对多的关系
 
@@ -920,5 +918,578 @@ public class User {
 
 ```
 
+## mybatis延迟加载
 
+什么是延迟加载:就只先只执行查询主体,不执行关联查询
+
+<h4 style="color:gray;">association懒加载配置</h4>
+```xml
+1.在mybatis的核心配置文件里面配置(全局都是延迟加载加载)
+核心配置文件:
+	<settings>
+        <setting name="lazyLoadingEnabled" value="true"/>
+        <!--mybatis3.4.1版本后可以不写,默认为false-->
+        <setting name="aggressiveLazyLoading" value="false"/>
+    </settings>
+
+主体映射器(mapper),这里是通过账户查用户为例:
+	<resultMap id="accountMap" type="org.mmm.pojo.Account">
+        <id column="ID" property="ID"/>
+        <result column="UID" property="UID"/>
+        <result column="MONEY" property="MONEY"/>
+
+        <!--1对1进行关联表查询的时候对字段进行映射-->
+        <!--column表示关联查询需要的参数-->
+        <!--select表示要执行关联查询的接口，填接口的全限定名-->
+        <association property="user" column="UID" 	select="org.mmm.dao.UserDao.findUserById"/>
+    </resultMap>
+
+    <select id="findAll" resultMap="accountMap">
+        select * from account
+    </select>
+
+关联查询的映射器:
+	<select id="findUserById" parameterType="int" resultType="user">
+        select * from user where id = #{id}
+    </select>
+
+	如果不使用延迟查询,就是先执行select * from account，再执行select * from user where id = #{id}
+
+2.在主映射器里面配置
+	<!--关联的接口配置一个fetchType属性为lazy-->
+	<association property="user" column="UID" select="org.mmm.dao.UserDao.findUserById" fetchType="lazy"/>
+
+```
+
+<h4 style="color:gray;">collection懒加载配置</h4>
+```xml
+1.配置文件配置(一样的)
+	<settings>
+        <setting name="lazyLoadingEnabled" value="true"/>
+        <!--mybatis3.4.1版本后可以不写,默认为false-->
+        <setting name="aggressiveLazyLoading" value="false"/>
+    </settings>
+
+user的映射器(主体映射器)
+<mapper namespace="org.mmm.dao.UserDao">
+
+    <resultMap id="userDao" type="org.mmm.pojo.User">
+        <id column="id" property="id"/>
+        <result property="username" column="username"/>
+        <result property="birthday" column="birthday"/>
+        <result property="sex" column="sex"/>
+        <result property="address" column="address"/>
+        <collection property="list" column="id" 		select="org.mmm.dao.AccountDao.findAccountByUid"/>
+    </resultMap>
+
+
+    <select id="findAll" resultMap="userDao" resultType="user">
+        select * from user;
+    </select>
+</mapper>
+
+account的映射器(附属映射器)
+<mapper namespace="org.mmm.dao.AccountDao">
+
+    <select id="findAccountByUid" resultType="account">
+        select * from account;
+    </select>
+</mapper>
+
+2.在collection标签里面配置fetch属性
+
+<collection property="list" column="id" select="org.mmm.dao.AccountDao.findAccountByUid" fetchType="lazy"/>
+
+
+```
+
+## mybatis的缓存
+
+```txt
+哪些数据适合缓存:
+	不应该变化的数据
+	反之,经常变化的数据就不适合缓存	
+```
+
+<h4 style="color:gray;">一级缓存的分析</h4>
+```java
+一级缓存存在于SqlSession创建代理对象时
+    一级缓存就是,查询的时候,如果缓存里面有就直接从缓存里面取(只执行一次sql)
+	
+如果SqlSession在中间被close过,那么一级缓存就会被清空,那么就会重新取数据库查
+
+当我们对数据库里面的数据进行修改时,mysql发现数据库的数据和缓存中的数据库不一致,然后就会清空缓存,因为让我们对数据库执行了修改操作的时候,一级缓存会被清空(所以SqlSession不会缓存同步)
+
+```
+
+## *mybatis的注解开发
+
+<h4 style="color:gray;">mybatis的常用注解说明</h4>
+```java
+@Insert:实现新增
+@Update:实现更新    
+@Delete:实现删除
+@Select:实现查询
+@Result:实现结果集封装    
+@Results:可以与@Result一起使用,封装多个结果集
+@ResultMap:实现引用@Results定义的封装
+@One:实现一对一结果集封装
+@Many:实现一对多结果集封装    
+@SelectProvider:实现动态SQL映射    
+@CacheNamespace:实现注解二级缓存的使用    
+```
+
+### 	mybatis注解开发CRUD简单使用
+
+```java
+@Select标签的使用:
+	直接在括号里面写sql语句
+
+    @Select("select * from user")
+    List<User> findAll();
+	
+	@Select("select * from user where id = #{id}")
+    User findUserById(Integer id);
+
+
+@Update标签的使用
+    @Update("update user set username = #{username} where id = #{id}")
+    void updateUser(User user);
+
+@Insert标签的使用
+@SelectKey标签的使用  
+    
+    @SelectKey属性的解释:
+		keyColumn:主键对应的实体字段名称
+    	keyProperty:实体对应的属性名
+        resultType: 主键的数据类型
+        before: 生成主键的时机 false 在新增之后, 生成主键
+        statement: 查询主键的sql
+    @Insert("insert into user(username,birthday,sex,address) values(#{username}," +
+            "#{birthday},#{sex},#{address})")
+    @SelectKey(keyColumn = "id", keyProperty = "id", resultType = Integer.class,
+            before = false, statement = {"select last_insert_id()"})
+    void addUser(User user);
+```
+
+### 	使用注解的方式解决数据表的字段和实体的属性名不一致的问题
+
+```java
+使用@Results和@Result标签来解决
+	
+	@Results(id = "userMap", value = {
+           //ID表示是不是主键,默认为false,column是数据表里的名称,property实体类的属性名
+        	@Result(id = true, column = "id", property = "UserId"),
+            @Result(column = "username", property = "username"),
+            @Result(column = "birthday", property = "userBirthday"),
+            @Result(column = "sex", property = "UserSex"),
+            @Result(column = "address", property = "address"),
+    })
+    @Select("select * from user")
+    List<User> findAll();
+	
+	//ResultMap引用的是Results的ID
+    @ResultMap("userMap")
+    @Select("select * from user where id = #{id}")
+    User findUserById(Integer id);
+```
+
+### 	使用注解解决一对一关联表查询的问题
+
+```java
+主体(accountDao)查询的注解:
+    
+@Results(id = "userMap" , value = {
+            @Result(id = true, column = "id", property = "ID"),
+            @Result(column = "UID", property = "UID"),
+            @Result(column = "MONEY", property = "MONEY"),
+    		//UID是从account表查出的数据,当做参数传入findUserById方法
+    		//fetchType = FetchType.LAZY表示懒查询,去掉的话就不执行懒查询
+            @Result(column = "UID", property = "user", one = @One(fetchType = FetchType.LAZY,select = "org.mmm.dao.UserDao.findUserById")),
+    })
+    @Select("select * from account")
+    List<Account> findAll();
+
+附加(userDao)查询的注解
+
+    @Results(id = "userMap", value = {
+            @Result(id = true, column = "id", property = "UserId"),
+            @Result(column = "username", property = "username"),
+            @Result(column = "birthday", property = "userBirthday"),
+            @Result(column = "sex", property = "UserSex"),
+            @Result(column = "address", property = "address"),
+    })
+    @Select("select * from user")
+    List<User> findAll();
+
+    @ResultMap("userMap")
+    @Select("select * from user where id = #{id}")
+    User findUserById(Integer id);    
+
+测试类:
+@Test
+    public void test02(){
+        AccountDao accountDao = session.getMapper(AccountDao.class);
+        accountDao.findAll();
+    }
+
+```
+
+### 	使用mybatis注解解决一对多的问题
+
+```java
+
+和一对多不同的是,one属性变成了many属性,@one标签变成了@many
+
+@Results(id = "userMap", value = {
+            @Result(id = true, column = "id", property = "UserId"),
+            @Result(column = "username", property = "username"),
+            @Result(column = "birthday", property = "userBirthday"),
+            @Result(column = "sex", property = "UserSex"),
+            @Result(column = "address", property = "address"),
+            @Result(column = "id", property = "list",
+                    many = @Many(select = "org.mmm.dao.AccountDao.findAccountByUid"))
+    })
+    @Select("select * from user")
+    List<User> findAll();
+
+附属接口
+@Select("select * from account where id = #{UserId}")
+    List<Account> findAccountByUid(Integer id);
+```
+
+##mybatis逆向工程
+
+### 逆向工程需要的依赖
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.mmm</groupId>
+    <artifactId>mybatis-demo10-generator</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis</artifactId>
+            <version>3.5.9</version>
+        </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.33</version>
+        </dependency>
+
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+            <version>1.2.17</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.mybatis.generator</groupId>
+                <artifactId>mybatis-generator-maven-plugin</artifactId>
+                <version>1.3.0</version>
+
+                <configuration>
+                    <overwrite>true</overwrite>
+                </configuration>
+
+                <dependencies>
+                    <dependency>
+                        <groupId>org.mybatis.generator</groupId>
+                        <artifactId>mybatis-generator-core</artifactId>
+                        <version>1.3.2</version>
+                    </dependency>
+
+                    <dependency>
+                        <groupId>com.mchange</groupId>
+                        <artifactId>c3p0</artifactId>
+                        <version>0.9.2</version>
+                    </dependency>
+
+                    <dependency>
+                        <groupId>mysql</groupId>
+                        <artifactId>mysql-connector-java</artifactId>
+                        <version>8.0.33</version>
+                    </dependency>
+                </dependencies>
+
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+```
+
+### mybatis的核心配置文件
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<!--mybatis的配置标签<configuration-->
+<configuration>
+    <properties resource="db.properties"/>
+    <!--    <settings>-->
+    <!--        <setting name="defaultExecutorType" value="BATCH"/>-->
+    <!--    </settings>-->
+    <typeAliases>
+        <package name="com.mmm.pojo"/>
+    </typeAliases>
+    <!--配置环境mybatis的事务管理,还有数据源-->
+    <environments default="mybatis">
+        <environment id="mybatis">
+
+            <transactionManager type="JDBC"></transactionManager>
+            <dataSource type="POOLED">
+                <property name="driver" value="${jdbc.driver}"/>
+                <property name="url" value="${jdbc.url}"/>
+                <property name="username" value="${jdbc.username}"/>
+                <property name="password" value="${jdbc.password}"/>
+            </dataSource>
+        </environment>
+    </environments>
+
+    <!--引入映射文件-->
+    <mappers>
+        <package name="com/mmm/mapper"/>
+    </mappers>
+
+</configuration>
+```
+
+### 逆向工程的核心配置文件
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE generatorConfiguration
+        PUBLIC "-//mybatis.org//DTD MyBatis Generator
+Configuration 1.0//EN"
+        "http://mybatis.org/dtd/mybatis-generator-config_1_0.dtd">
+<generatorConfiguration>
+    <!--
+    targetRuntime: 执行生成的逆向工程的版本
+    MyBatis3Simple: 生成基本的CRUD
+    MyBatis3: 生成带条件的CRUD
+    -->
+    <context id="DB2Tables" targetRuntime="MyBatis3Simple">
+        <!-- 数据库的连接信息 -->
+        <jdbcConnection driverClass="com.mysql.cj.jdbc.Driver"
+                        connectionURL="jdbc:mysql://127.0.0.1:3306/mybatis?serverTimezone=Asia/Shanghai"
+                        userId="root"
+                        password="root">
+        </jdbcConnection>
+        <!-- javaBean的生成策略-->
+        <javaModelGenerator targetPackage="com.mmm.pojo"
+                            targetProject=".\src\main\java">
+            <!--
+            是否生成子包。如果为true com.xq.pojo生成的保姆那个带有层级
+            目录
+            false com.xq.pojo就是一个包名
+            -->
+            <property name="enableSubPackages" value="true" />
+            <!--
+            通过数据表字段生成pojo。如果字段名称带空格，会去掉空格
+            -->
+            <property name="trimStrings" value="true" />
+        </javaModelGenerator>
+        <!-- SQL映射文件的生成策略 -->
+        <sqlMapGenerator targetPackage="com.mmm.mapper"
+                         targetProject=".\src\main\resources">
+            <property name="enableSubPackages" value="true" />
+        </sqlMapGenerator>
+        <!-- Mapper接口的生成策略 -->
+        <javaClientGenerator type="XMLMAPPER"
+                             targetPackage="com.mmm.mapper"
+                             targetProject=".\src\main\java">
+            <property name="enableSubPackages" value="true" />
+        </javaClientGenerator>
+        <!-- 逆向分析的表 -->
+        <!-- tableName设置为*号，可以对应所有表，此时不写
+        domainObjectName -->
+        <!-- domainObjectName属性指定生成出来的实体类的类名 -->
+        <table tableName="user" domainObjectName="User"/>
+    </context>
+</generatorConfiguration>
+
+```
+
+### db.properties文件,mybatis核心配置文件加载
+
+```proper
+jdbc.driver=com.mysql.cj.jdbc.Driver
+jdbc.url=jdbc:mysql://127.0.0.1:3306/mybatis?serverTimezone=Asia/Shanghai
+jdbc.username=root
+jdbc.password=root
+```
+
+<h4 style="color:gray;">逆向工程配置文件里(generatorConfig.xml),红框位置改成MyBatis3会生成更复杂的查询语句</h4>
+
+![mybatis.png](https://img2.imgtp.com/2024/05/01/4ebbJwjP.png)
+
+### 复杂逆向工程生成的接口使用方法
+
+```java
+//查询所有数据selectByExample(null)
+  @Test
+    public void test01(){
+        try {
+            InputStream in = Resources.getResourceAsStream("sqlMapConfig.xml");
+            SqlSessionFactoryBuilder builder = new SqlSessionFactoryBuilder();
+            SqlSessionFactory build = builder.build(in);
+            SqlSession session = build.openSession();
+            UserMapper mapper = session.getMapper(UserMapper.class);
+            //得到一个List集合
+            mapper.selectByExample(null).forEach(System.out::println);
+            session.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+//添加条件查询要使用Example对象
+    @Test
+    public void test01(){
+        try {
+            InputStream in = Resources.getResourceAsStream("sqlMapConfig.xml");
+            SqlSessionFactoryBuilder builder = new SqlSessionFactoryBuilder();
+            SqlSessionFactory build = builder.build(in);
+            SqlSession session = build.openSession();
+            UserMapper mapper = session.getMapper(UserMapper.class);
+
+            //查询id为2的用户
+            UserExample example = new UserExample();
+            example.createCriteria().andIdEqualTo(2);
+            mapper.selectByExample(example).forEach(System.out::println);
+
+            session.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+//多个条件查询,链式操作(在example.createCriteria.后面一直and加条件)
+
+    @Test
+    public void test01(){
+        try {
+            InputStream in = Resources.getResourceAsStream("sqlMapConfig.xml");
+            SqlSessionFactoryBuilder builder = new SqlSessionFactoryBuilder();
+            SqlSessionFactory build = builder.build(in);
+            SqlSession session = build.openSession();
+            UserMapper mapper = session.getMapper(UserMapper.class);
+
+            //查询在上海的男性用户
+            UserExample example = new UserExample();
+            example.createCriteria().andSexEqualTo("男").andAddressEqualTo("上海");
+            mapper.selectByExample(example).forEach(System.out::println);
+
+            session.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+//使用or条件
+  @Test
+    public void test01(){
+        try {
+            InputStream in = Resources.getResourceAsStream("sqlMapConfig.xml");
+            SqlSessionFactoryBuilder builder = new SqlSessionFactoryBuilder();
+            SqlSessionFactory build = builder.build(in);
+            SqlSession session = build.openSession();
+            UserMapper mapper = session.getMapper(UserMapper.class);
+
+            //查询在上海或者重庆的男性用户
+            UserExample example = new UserExample();
+            example.createCriteria().andSexEqualTo("男").andAddressEqualTo("上海");
+            example.or().andAddressEqualTo("重庆");
+            mapper.selectByExample(example).forEach(System.out::println);
+
+            session.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+//更新操作
+
+1.updateByPrimaryKey(user) //指定id修改用户信息,这个方法如果有属性没有传值,那么默认是null
+    
+    @Test
+    public void test01(){
+        try {
+            InputStream in = Resources.getResourceAsStream("sqlMapConfig.xml");
+            SqlSessionFactoryBuilder builder = new SqlSessionFactoryBuilder();
+            SqlSessionFactory build = builder.build(in);
+            SqlSession session = build.openSession();
+            UserMapper mapper = session.getMapper(UserMapper.class);
+
+            //修改id为7的用户的数据
+            User user = new User();
+            user.setBirthday(new Date());
+            user.setUsername("测试数据");
+            user.setSex("男");
+            user.setId(7);
+            mapper.updateByPrimaryKey(user);
+            session.commit();
+            session.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+2.updateByPrimaryKeySelective(user) //传什么字段就修改什么字段,不传值就维持原样
+    
+    @Test
+    public void test01(){
+        try {
+            InputStream in = Resources.getResourceAsStream("sqlMapConfig.xml");
+            SqlSessionFactoryBuilder builder = new SqlSessionFactoryBuilder();
+            SqlSessionFactory build = builder.build(in);
+            SqlSession session = build.openSession();
+            UserMapper mapper = session.getMapper(UserMapper.class);
+
+            //修改id为7的用户的username字段的数据
+            User user = new User();
+            user.setUsername("admin");
+            user.setId(7);
+            mapper.updateByPrimaryKeySelective(user);
+            session.commit();
+            session.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+```
 
